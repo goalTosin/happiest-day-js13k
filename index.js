@@ -1,104 +1,116 @@
-import { drawUnicorn, unicorn, unicorns } from "./unicorns.js";
-import { clamp } from "./utils.js";
+import { canvas, ctx } from "./canvas.js";
+import { clamp, coords, cos, sin } from "./utils.js";
 
-const canvas = document.querySelector("canvas");
-function resize() {
-  canvas.width = innerWidth;
-  canvas.height = innerHeight;
+let rain = [];
+while (rain.length < canvas.width / 25) {
+  rain.push(Math.random() * canvas.width);
 }
-resize();
-addEventListener("resize", resize); // resize setup
-const ctx = canvas.getContext("2d");
-
-const scenes = [
-  [
-    Date.now(),
-    () => {
-      ctx.textBaseline = "top";
-      ctx.fillStyle = "white";
-      ctx.fillText("Hey", 0, 0);
-    },
-  ],
-  [
-    0,
-    () => {
-      ctx.textBaseline = "top";
-      ctx.fillStyle = "white";
-      ctx.fillText("Hey2", 0, 0);
-    },
-  ],
-  [
-    0,
-    () => {
-      ctx.textBaseline = "top";
-      ctx.fillStyle = "white";
-      ctx.fillText("Hey3", 0, 0);
-    },
-  ],
-];
-const sceneFadeDur = 500;
-
-function sceneSize(i) {
-  const n = Date.now();
-  let w = 400,
-    h = 100;
-  let maxScreensPerLine = Math.floor((innerWidth - 20) / (w + 40));
-  let r = Math.floor(i / maxScreensPerLine);
-  // console.log(((i + 1) * (w + 40) + 20) / innerWidth);
-
-  return [
-    20 + (i % maxScreensPerLine) * (w + 40),
-    150 * (r + 1), //- Math.min(1, ((1-(scenes[i][0] - n)) / sceneFadeDur) ** 2) * 60 + 60,
-    w,
-    h,
-  ];
+let lastFlash = Date.now();
+let flashSeed = 1;
+let seed = 1;
+const thunder = () => {
+  seed++;
+  return Math.sin(((seed * 45 + flashSeed) * 37) ** 4 + 17) / 2 + 0.5;
+};
+let unicornY = 0;
+let unicornX = 0;
+let groundY = 0;
+function init() {
+    unicornY = canvas.height - 260;
+    unicornX = canvas.width / 2;
+    groundY = canvas.height - 260;
+}
+init()
+function drawUnicorn(n) {
+  n = n / 500;
+  const s = 1.2;
+  const a = sin(n * 4 + 0.4) * s,
+    a2 = sin(n * 4 + 1.5) * s,
+    a3 = sin(n * 4 + 0.8) * s,
+    a4 = sin(n * 4 + 0.2) * s;
+  ctx.strokeStyle = "#ffc2c2b6";
+  ctx.lineWidth = 5;
+  ctx.stroke(
+    new Path2D(
+      `M${unicornX - 40},${unicornY - 25} l${sin(a3) * 20},${cos(a3) * 20}M${
+        unicornX + 40
+      },${unicornY - 25} l${sin(a4) * 20},${cos(a4) * 20}`
+    )
+  );
+  ctx.beginPath();
+  ctx.rect(unicornX + 40, unicornY - 80, 30, 25);
+  ctx.rect(unicornX - 50, unicornY - 60, 100, 40);
+  ctx.fillStyle = "#ffc2c2";
+  ctx.fill();
+  console.log();
+  ctx.strokeStyle = "#ffc2c2";
+  ctx.stroke(
+    new Path2D(
+      `M${unicornX - 40},${unicornY - 25} l${sin(a) * 20},${cos(a) * 20}M${
+        unicornX + 40
+      },${unicornY - 25}l${sin(a2) * 20},${cos(a2) * 20}`
+    )
+  );
 }
 
 function animate() {
   requestAnimationFrame(animate);
+  const n = Date.now();
   let dt = 1;
   //update
-  unicorns.forEach((unicorn) => {
-    let sceneData = sceneSize(unicorn.c);
-    if (unicorn.a === 1) {
-      //if the unicorn is seeking a color
-      unicorn.x += 20 * dt;
-      unicorn.y = sceneData[1] + sceneData[3];
-      if (unicorn.x > sceneData[0] + sceneData[2]) {
-        // if the unicorn is out of the current scene
-        if (unicorn.c >= scenes.length - 1) {
-          // if the unicorn has reached the end of all scenes
-          unicorn.a = 2; //returning
-        } else {
-          unicorn.c++;
-          unicorn.x = sceneSize(unicorn.c)[0];
-          scenes[unicorn.c][0] = Date.now(); // fade in the scene
-        }
-      }
-      // console.log(unicorn.x, unicorn.y);
-    }
-  });
+  if (n - lastFlash >= 3000 || Math.random() < 0.002) {
+    lastFlash = n;
+    flashSeed = Math.random() * 10;
+  }
+
   //draw
   ctx.clearRect(0, 0, innerWidth, innerHeight);
-  const n = Date.now();
-  scenes.forEach((scene, i) => {
-    if (scene[0] !== 0) {
-      let sceneData = sceneSize(i);
-      ctx.save();
-      ctx.translate(sceneData[0], sceneData[1]);
-      ctx.beginPath();
-      ctx.rect(0, 0, sceneData[2], sceneData[3]);
-      ctx.fillStyle = "#388ee4";
-      ctx.globalAlpha = clamp(0, 1, (n - scene[0]) / sceneFadeDur);
-      ctx.fill();
-      ctx.globalAlpha = 1; //(n - scene[0])/ sceneFadeDur
-      scene[1]();
-      ctx.restore();
-    }
-  });
-  unicorns.forEach((unicorn) => {
+  // THUNDER!
+  if (n - lastFlash <= 250) {
+    ctx.beginPath();
+    ctx.rect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "white";
+    ctx.globalAlpha = (1 - ((n - lastFlash) / 250) * sin(n / 100) > 0.99) * 0.7;
+    ctx.fill();
 
-    drawUnicorn(ctx, unicorn, 25);
+    ctx.strokeStyle = "white";
+    ctx.globalAlpha = 1 - ((n - lastFlash) / 250) ** 3;
+    ctx.lineWidth = ctx.globalAlpha * 5;
+    for (let i = 0; i < Math.random() * 3; i++) {
+      seed = i;
+      ctx.shadowColor = "rgb(255, 255, 255)";
+      ctx.shadowBlur = 50;
+      // if (Math.random() < 0.1) {
+      ctx.stroke(
+        new Path2D(
+          `M${thunder() * canvas.width},0${Array(
+            Math.floor((8 + thunder() * 10) * (1 - ctx.globalAlpha ** 3)) * 2
+          )
+            .fill(0)
+            .map((_) => `l${Math.random()*5+thunder()*80-40}, 40`)}`
+        )
+      );
+      // ${coords(40, thunder() * 0.7 + 1.22)}
+      ctx.shadowColor = "rgba(0, 0, 0, 0)";
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.beginPath();
+  ctx.rect(0, groundY, canvas.width, canvas.height - groundY);
+  ctx.fillStyle = "brown";
+  ctx.fill();
+
+  // RAIN!
+  ctx.lineWidth = 0.5;
+  rain.forEach((p, i) => {
+    i = 10 + Math.sin(i * 399) * 5;
+    ctx.strokeStyle = "white";
+    ctx.stroke(new Path2D(`M${p + 4},${((n / 10) * i) % canvas.height}l0,-30`));
   });
+
+  //running unicorn
+  drawUnicorn(n);
 }
-animate(); // THE ENGINE STARTUP
+animate(); // THE STARTUP
+
+addEventListener("resize", init);
