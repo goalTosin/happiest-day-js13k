@@ -1,112 +1,155 @@
+/**
+ * ----------------- THE GAME ---------------------
+ * 7 Trials based on the colors of the rainbow
+ * Minification: Everything is as minimal as possible, engineered to behave the best way, in the tiniest fashion. All variables are `let` and hardly `const` to preserve 1 byte (we can't waste it ;). All object's properties are 1 lettered, because minifiers dont touch objects. Canvas paths are drawn with Path2d to make them smaller to write.
+ */
+
 import { canvas, ctx } from "./canvas.js";
-import { addArrs, clamp, coords, cos, min, roll, sin } from "./utils.js";
+import { drawUnicorn } from "./unicorn.js";
+import {
+  addArrs,
+  clamp,
+  coords,
+  cos,
+  min,
+  now,
+  rand,
+  roll,
+  sin,
+} from "./utils.js";
 
 let platforms = [];
 while (platforms.length < 500) {
   platforms.push({ x: platforms.length * 800, y: 300, w: 500, h: 100 });
 }
+// rain is just an array of numbers will be multiplied to range between the left and right side of the screen [454, 39, 21, 505, 368, ...]
 let rain = [];
 while (rain.length < canvas.width / 20) {
-  rain.push(Math.random() * canvas.width);
+  rain.push(rand());
 }
-const keysDown = {};
-let jumped = true;
-let lastFlash = Date.now();
-let flashSeed = Math.random() * 80;
-let unicorn_running = true;
+
+let levels = [
+  {
+    d: () => {
+      // red river
+      ctx.beginPath();
+      ctx.rect(0, 50, canvas.width, canvas.width / 2 - camX);
+      ctx.fillStyle = "#ff5314";
+      ctx.fill();
+    },
+    p: [],
+    n: ["Red River", "Lava lake"],
+  },
+];
+let camX, camY;
+let level = 0;
+let unicornDir = 1;
+let keysDown = {};
+let dashed = true;
+let lastFlash = now();
+let flashSeed = rand() * 80; //controls how the flash happens
 let strikeSeed = 1;
+let unicornAnimationStartTime = 0;
 let gravity = 0.2;
+//controlled random number between 0 and 1 for thunder, using flashseed and strikeseed to control it
 const thunder = () => {
   strikeSeed++;
-  return Math.sin(((strikeSeed * 45 + flashSeed) * 37) ** 4 + 17) / 2 + 0.5;
+  return sin(((strikeSeed * 45 + flashSeed) * 37) ** 4 + 17) / 2 + 0.5;
 };
 // 0 for start screen //1 for game screen
-let screen = 0;
+let screen = 1;
 let unicornY = 0;
 let unicornX = 0;
 let unicornVY = 0;
 let unicornVX = 0;
-let groundY = 0;
-let unicornW = 115;
-let unicornH = 60;
+let unicornW = 128;
+let unicornH = 80;
 let transitionStart = 0;
-const colors = ["red", "orange", "yellow", "green", "blue", "indigo", "violet"];
-function init() {
-  unicornY = 0;
-  unicornX = 0;
-  groundY = canvas.height / 2 - 260;
-}
-init();
-window.transitionTo = transitionTo
+let colors = ["red", "orange", "yellow", "green", "blue", "indigo", "violet"];
+let clean_colors = [
+  "FF4444",
+  "FF8800",
+  "FFDD00",
+  "44CC44",
+  "4488FF",
+  "6644CC",
+  "CC44FF",
+];
+
+window.transitionTo = transitionTo;
 function transitionTo(sc) {
-  transitionStart = Date.now();
+  transitionStart = now();
   setTimeout(() => (screen = sc), 1500);
 }
-function drawUnicorn(n) {
-  n = unicorn_running ? n / 500 : 0;
-  const s = 1.2;
-  const a = sin(n * 4 + 0.4) * s,
-    a2 = sin(n * 4 + 1.5) * s,
-    a3 = sin(n * 4 + 0.8) * s,
-    a4 = sin(n * 4 + 0.2) * s;
-  ctx.strokeStyle = "#ffc2c2b6";
-  ctx.lineWidth = 5;
-  ctx.stroke(
-    new Path2D(
-      `M${unicornX - 35},${unicornY + 5} l${sin(a3) * 20},${cos(a3) * 20}M${
-        unicornX + 35
-      },${unicornY + 5} l${sin(a4) * 20},${cos(a4) * 20}`
-    )
-  );
-  ctx.beginPath();
-  ctx.rect(unicornX + 25, unicornY - 30, 30, 25);
-  ctx.rect(unicornX - 55, unicornY - 10, 95, 20);
-  ctx.fillStyle = "#ffc2c2";
-  ctx.fill();
-  // debug
-  ctx.beginPath();
-  ctx.rect(
-    unicornX - unicornW / 2,
-    unicornY - unicornH / 2,
-    unicornW,
-    unicornH
-  );
-  ctx.strokeStyle = "#ff0000";
-  ctx.lineWidth = 5;
-  ctx.setLineDash([4, 4]);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  // debug end
-  console.log();
-  ctx.strokeStyle = "#ffc2c2";
-  ctx.stroke(
-    new Path2D(
-      `M${unicornX - 35},${unicornY + 5} l${sin(a) * 20},${cos(a) * 20}M${
-        unicornX + 35
-      },${unicornY + 5}l${sin(a2) * 20},${cos(a2) * 20}`
-    )
-  );
-}
+// function drawUnicorn(n) {
+//   n = unicorn_running ? n / 500 : 0;
+//   const s = 1.2;
+//   const a = sin(n * 4 + 0.4) * s,
+//     a2 = sin(n * 4 + 1.5) * s,
+//     a3 = sin(n * 4 + 0.8) * s,
+//     a4 = sin(n * 4 + 0.2) * s;
+//   ctx.strokeStyle = "#ffc2c2b6";
+//   ctx.lineWidth = 5;
+//   ctx.stroke(
+//     new Path2D(
+//       `M${unicornX - 35},${unicornY + 5} l${sin(a3) * 20},${cos(a3) * 20}M${
+//         unicornX + 35
+//       },${unicornY + 5} l${sin(a4) * 20},${cos(a4) * 20}`
+//     )
+//   );
+//   ctx.beginPath();
+//   ctx.rect(unicornX + 25, unicornY - 30, 30, 25);
+//   ctx.rect(unicornX - 55, unicornY - 10, 95, 20);
+//   ctx.fillStyle = "#ffc2c2";
+//   ctx.fill();
+//   // debug
+//   ctx.beginPath();
+//   ctx.rect(
+//     unicornX - unicornW / 2,
+//     unicornY - unicornH / 2,
+//     unicornW,
+//     unicornH
+//   );
+//   ctx.strokeStyle = "#ff0000";
+//   ctx.lineWidth = 5;
+//   ctx.setLineDash([4, 4]);
+//   ctx.stroke();
+//   ctx.setLineDash([]);
+//   // debug end
+//   console.log();
+//   ctx.strokeStyle = "#ffc2c2";
+//   ctx.stroke(
+//     new Path2D(
+//       `M${unicornX - 35},${unicornY + 5} l${sin(a) * 20},${cos(a) * 20}M${
+//         unicornX + 35
+//       },${unicornY + 5}l${sin(a2) * 20},${cos(a2) * 20}`
+//     )
+//   );
+// }
+let inair = true;
 
 function animate() {
   window.a = requestAnimationFrame(animate);
-  const n = Date.now();
+  const n = now();
   let dt = 1;
   //update
-  if (n - lastFlash >= 3000 || Math.random() < 0.002) {
+  //thunder STRIKE!
+  if (n - lastFlash >= 3000 || rand() < 0.002) {
     lastFlash = n;
-    flashSeed = Math.random() * 10;
+    flashSeed = rand() * 10;
   }
   unicornX += unicornVX * dt;
   unicornY += unicornVY * dt;
   unicornVY += gravity * dt;
-  let inair = true;
+  let collided = false;
   platforms.forEach((platform) => {
     if (
       Math.abs(platform.x - unicornX) <= (platform.w + unicornW) / 2 &&
       Math.abs(platform.y - unicornY) <= (platform.h + unicornH) / 2
     ) {
       // console.log("yer");
+
+      collided = true;
       inair = false;
       let cl = [
         platform.x - platform.w / 2,
@@ -136,22 +179,35 @@ function animate() {
     }
   });
 
+  if (!collided && !inair) {
+    inair = true;
+    unicornAnimationStartTime = n;
+  }
+
+  let unicornRunning = true;
+
   if (keysDown["a"]) {
     unicornVX = -5;
+    unicornDir = -1;
+  } else if (keysDown["d"]) {
+    unicornVX = 5;
+    unicornDir = 1;
+  } else if (unicornRunning) {
+    unicornRunning = false;
+
+    unicornAnimationStartTime = Date.now();
   }
 
   if (keysDown["w"] && !inair) {
     unicornVY = -5;
-  }
-
-  if (keysDown["d"]) {
-    unicornVX = 5;
+    unicornAnimationStartTime = Date.now(); // lerp into jumpung anumation
   }
 
   //draw
   ctx.clearRect(0, 0, innerWidth, innerHeight);
   // THUNDER!
-  if (n - lastFlash <= 250) {
+
+  if (n - lastFlash <= 250 && false) {
     ctx.beginPath();
     ctx.rect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "white";
@@ -161,18 +217,18 @@ function animate() {
     ctx.strokeStyle = "white";
     ctx.globalAlpha = 1 - ((n - lastFlash) / 250) ** 3;
     ctx.lineWidth = ctx.globalAlpha * 5;
-    for (let i = 0; i < Math.random() * 3; i++) {
+    for (let i = 0; i < rand() * 3; i++) {
       strikeSeed = i;
       ctx.shadowColor = "rgb(255, 255, 255)";
       ctx.shadowBlur = 50;
-      // if (Math.random() < 0.1) {
+      // if (rand() < 0.1) {
       ctx.stroke(
         new Path2D(
           `M${thunder() * canvas.width},0${Array(
-            Math.floor((8 + thunder() * 10) * (1 - ctx.globalAlpha ** 3)) * 2
+            Math.floor((8 + thunder() * 10) * (1 - ctx.globalAlpha)) * 2
           )
             .fill(0)
-            .map((_) => `l${Math.random() * 5 + thunder() * 80 - 40}, 40`)}`
+            .map((_) => `l${rand() * 5 + thunder() * 80 - 40}, 40`)}`
         )
       );
       // ${coords(40, thunder() * 0.7 + 1.22)}
@@ -181,21 +237,24 @@ function animate() {
     ctx.globalAlpha = 1;
   }
   // RAIN!
-  ctx.lineWidth = 0.5;
-  rain.forEach((p, i) => {
-    //  👇 u can adjust speed of rain drop
-    i = 11 + Math.sin(i * 399) * 5;
-    // adjust the speed variance 👆
-    ctx.strokeStyle = "white";
-    ctx.stroke(
-      new Path2D(
-        `M${roll(p - unicornX, canvas.width)},${roll(
-          (n / 10) * i - unicornY,
-          canvas.height
-        )}l-2,-35`
-      )
-    );
-  });
+  if (false) {
+    ctx.lineWidth = 0.5;
+    rain.forEach((p, i) => {
+      //  👇 u can adjust speed of rain drop
+      i = 11 + Math.sin(i * 399) * 5;
+      // adjust the speed variance 👆
+      ctx.strokeStyle = "white";
+      ctx.stroke(
+        new Path2D(
+          `M${roll(p - unicornX, 1) * canvas.width},${roll(
+            (n / 10) * i - unicornY,
+            canvas.height
+          )}l-2,-35`
+        )
+      );
+    });
+  }
+
   switch (screen) {
     // HOME SCREEN
     case 0:
@@ -204,7 +263,15 @@ function animate() {
       ctx.fillStyle = "#00000020";
       ctx.fill();
       ctx.font = "bold 70px Calibri";
+      ctx.save();
       const w = ctx.measureText("AURELIUS's").width;
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.scale(
+        min(1, canvas.width / (w + 60)),
+        min(1, canvas.width / (w + 60))
+      );
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
       const g = ctx.createLinearGradient(
         canvas.width / 2 - w / 2,
         canvas.height / 2,
@@ -238,27 +305,49 @@ function animate() {
         canvas.width / 2,
         canvas.height / 2 + 150 + (n % 1000 < 500 ? 2 : 0)
       );
+      ctx.restore();
       break;
     // GAME SCREEN
     case 1:
+      ctx.fillStyle = clean_colors[level];
+      ctx.font = "bold 11px system-ui";
+      ctx.textAlign = "start";
+      ctx.textBaseline = "top";
+      ctx.fillText(
+        "lvl " + level + ": " + levels[level].n[1].toUpperCase(),
+        15,
+        15
+      );
+      (camX = unicornX), (camY = unicornY);
       ctx.save();
-      ctx.translate(canvas.width / 2 - unicornX, canvas.height / 2 - unicornY);
+      ctx.translate(canvas.width / 2 - camX, canvas.height / 2 - camY);
+
       // ctx.beginPath();
-      // ctx.rect(0, groundY, canvas.width, canvas.height - groundY);
-      // ctx.fillStyle = "brown";
-      // ctx.fill();
+      levels[level].d();
 
       platforms.forEach((p) => {
         ctx.beginPath();
         ctx.rect(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h);
         ctx.strokeStyle = "white";
-        ctx.setLineDash([10, 4]), ctx.stroke();
+        ctx.setLineDash([10, 4]);
+        ctx.stroke();
         ctx.setLineDash([]);
         // console.log('bh');
       });
 
       //running unicorn
-      drawUnicorn(n);
+      drawUnicorn(
+        unicornX,
+        unicornY,
+        unicornVX,
+        unicornVY,
+        unicornW,
+        unicornH,
+        unicornRunning,
+        unicornAnimationStartTime,
+        unicornDir,
+        inair
+      );
       ctx.restore();
       break;
   }
@@ -294,12 +383,16 @@ function animate() {
 }
 animate(); // THE STARTUP
 
-addEventListener("resize", init);
-addEventListener("click", () => {
-  unicorn_running = !unicorn_running;
-});
+// addEventListener("click", () => {
+//   unicorn_running = !unicorn_running;
+// });
 addEventListener("keydown", (e) => {
-  if (e.code === "Space" && screen === 0) {
+  if (
+    e.code === "Space" &&
+    screen === 0 &&
+    now() - transitionStart >= 3000 &&
+    !e.shiftKey
+  ) {
     transitionTo(1);
   } else if (e.code === "Space") {
     if (window.a) {
@@ -320,3 +413,9 @@ addEventListener("keyup", k);
 function k(e) {
   keysDown[e.key.toLowerCase()] = e.type === "keydown";
 }
+
+addEventListener("click", () => {
+  if (screen === 0 && now() - transitionStart >= 3000) {
+    transitionTo(1);
+  }
+});
